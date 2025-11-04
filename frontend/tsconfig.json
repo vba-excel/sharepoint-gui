@@ -21,7 +21,7 @@
     "src/**/*.ts",
     "src/**/*.js",
     "src/**/*.svelte"
-  ],
+, "src/App.svelte.2.txt"  ],
   "references": [
     {
       "path": "./tsconfig.node.json"

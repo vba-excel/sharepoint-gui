@@ -14,19 +14,17 @@
   // ===== Settings =====
   let cfgPath = localStorage.getItem('sp_cfg') || 'private.json';
   let siteURL = localStorage.getItem('sp_site') || '';
-  // novo: Global Timeout (s). 0 = sem limite
-  let gt = Number(localStorage.getItem('sp_gt') ?? '60');
 
   async function pickConfig() {
+    // diálogo é chamado no backend Go
     const p = await OpenConfigDialog();
     if (p) cfgPath = p as string;
   }
 
   async function saveConfig() {
-    await SetConfig({ ConfigPath: cfgPath, SiteURL: siteURL, GlobalTimeoutSec: Number(gt) });
+    await SetConfig({ ConfigPath: cfgPath, SiteURL: siteURL });
     localStorage.setItem('sp_cfg', cfgPath);
     localStorage.setItem('sp_site', siteURL);
-    localStorage.setItem('sp_gt', String(gt));
     alert('Config guardada ✅');
   }
 
@@ -46,7 +44,7 @@
 
   onMount(async () => {
     try { await Ping(); } catch { /* ignore */ }
-    await SetConfig({ ConfigPath: cfgPath, SiteURL: siteURL, GlobalTimeoutSec: Number(gt) });
+    await SetConfig({ ConfigPath: cfgPath, SiteURL: siteURL });
   });
 
   async function runList() {
@@ -162,10 +160,6 @@
       <div class="row">
         <label for="site">Site URL (override)</label>
         <input id="site" bind:value={siteURL} placeholder="(opcional)" />
-      </div>
-      <div class="row">
-        <label for="gt">Global timeout (s)</label>
-        <input id="gt" type="number" min="0" bind:value={gt} />
       </div>
       <div class="row">
         <span></span>

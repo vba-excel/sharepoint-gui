@@ -15,9 +15,8 @@ import (
 )
 
 type Config struct {
-	ConfigPath       string // ex.: "private.json"
-	SiteURL          string // override opcional
-	GlobalTimeoutSec int    // 0 = sem limite global; >0 em segundos
+	ConfigPath string // ex.: "private.json"
+	SiteURL    string // override opcional
 }
 
 type SPGUI struct {
@@ -87,7 +86,7 @@ func (g *SPGUI) ListItems(q ListQuery) (*ListResponse, error) {
 	if err := g.ensureService(); err != nil {
 		return nil, err
 	}
-	ctx, cancel := g.opCtx()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
 	items, stats, err := g.svc.ListItems(ctx, spapi.ListQueryOptions{
@@ -119,7 +118,7 @@ func (g *SPGUI) GetItem(list string, id int, selectFields string) (map[string]an
 	if err := g.ensureService(); err != nil {
 		return nil, err
 	}
-	ctx, cancel := g.opCtx()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 	return g.svc.GetItemByID(ctx, list, id, selectFields)
 }
@@ -128,9 +127,8 @@ func (g *SPGUI) AddItem(list string, fields map[string]any, selectFields string)
 	if err := g.ensureService(); err != nil {
 		return nil, err
 	}
-	ctx, cancel := g.opCtx()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-
 	created, err := g.svc.AddItem(ctx, list, fields)
 	if err != nil {
 		return nil, err
@@ -149,9 +147,8 @@ func (g *SPGUI) UpdateItem(list string, id int, fields map[string]any, selectFie
 	if id <= 0 {
 		return nil, fmt.Errorf("id inválido")
 	}
-	ctx, cancel := g.opCtx()
+	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
-
 	if _, err := g.svc.UpdateItem(ctx, list, id, fields); err != nil {
 		return nil, err
 	}
@@ -165,9 +162,8 @@ func (g *SPGUI) DeleteItem(list string, id int) (bool, error) {
 	if id <= 0 {
 		return false, fmt.Errorf("id inválido")
 	}
-	ctx, cancel := g.opCtx()
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
-
 	if err := g.svc.DeleteItem(ctx, list, id); err != nil {
 		return false, err
 	}
@@ -181,15 +177,6 @@ func (g *SPGUI) JSON(v any) string {
 }
 
 // ===== Internos =====
-
-// opCtx devolve um contexto condicionado ao GlobalTimeoutSec:
-// 0 => sem limite (WithCancel); >0 => WithTimeout.
-func (g *SPGUI) opCtx() (context.Context, context.CancelFunc) {
-	if g.cfg.GlobalTimeoutSec > 0 {
-		return context.WithTimeout(context.Background(), time.Duration(g.cfg.GlobalTimeoutSec)*time.Second)
-	}
-	return context.WithCancel(context.Background())
-}
 
 func (g *SPGUI) ensureService() error {
 	if g.svc != nil {

@@ -1,0 +1,17 @@
+{
+  "siteUrl": "https://jmartins.sharepoint.com/sites/LavagensJMR",
+  "edgeOptions": {
+    "edgePath": "",
+    "userDataDir": "",
+    "profileDir": "",
+    "headless": true,
+    "timeoutSeconds": 180,
+    "debug": true,
+
+    "autoProfile": true,
+    "interactiveFallback": true,
+    "allowTempProfileWhenLocked": true,
+    "forceTempProfile": false,
+    "refreshSkewSeconds": 300
+  }
+}
