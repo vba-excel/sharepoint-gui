@@ -3,19 +3,37 @@
 import {spgui} from '../models';
 import {context} from '../models';
 
+export function AddAttachment(arg1:string,arg2:number,arg3:string,arg4:Array<number>):Promise<spgui.SPAttachmentInfo>;
+
 export function AddItem(arg1:string,arg2:Record<string, any>,arg3:string):Promise<Record<string, any>>;
 
+export function CancelCurrent():Promise<boolean>;
+
+export function DeleteAttachment(arg1:string,arg2:number,arg3:string):Promise<boolean>;
+
 export function DeleteItem(arg1:string,arg2:number):Promise<boolean>;
+
+export function DownloadAttachment(arg1:string,arg2:number,arg3:string):Promise<Array<number>>;
+
+export function DownloadByURL(arg1:string):Promise<Array<number>>;
 
 export function GetItem(arg1:string,arg2:number,arg3:string):Promise<Record<string, any>>;
 
 export function JSON(arg1:any):Promise<string>;
+
+export function ListAttachments(arg1:string,arg2:number):Promise<Array<spgui.SPAttachmentInfo>>;
 
 export function ListItems(arg1:spgui.ListQuery):Promise<spgui.ListResponse>;
 
 export function OpenConfigDialog():Promise<string>;
 
 export function Ping():Promise<string>;
+
+export function SaveAttachmentPick(arg1:string,arg2:number,arg3:string):Promise<string>;
+
+export function SaveByURLPick(arg1:string):Promise<string>;
+
+export function SaveBytesPick(arg1:string,arg2:Array<number>,arg3:string):Promise<string>;
 
 export function SetConfig(arg1:spgui.Config):Promise<void>;
 

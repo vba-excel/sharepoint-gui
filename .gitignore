@@ -3,3 +3,7 @@ node_modules
 frontend/dist
 
 private.json
+
+include.list
+
+*.txt

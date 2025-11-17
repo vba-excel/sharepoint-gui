@@ -1,316 +1,72 @@
 <script lang="ts">
   import { onMount } from 'svelte';
-  import {
-    Ping,
-    ListItems,
-    JSON as JSONFmt,
-    SetConfig,
-    AddItem,
-    UpdateItem,
-    DeleteItem,
-    OpenConfigDialog
-  } from '../wailsjs/go/spgui/SPGUI';
+  import Overlay from './components/Overlay.svelte';
+  import Toasts from './components/Toasts.svelte';
+  import SettingsPanel from './components/SettingsPanel.svelte';
+  import ListQueryPanel from './components/ListQueryPanel.svelte';
+  import CrudPanel from './components/CrudPanel.svelte';
+  import AttachmentsPanel from './components/AttachmentsPanel.svelte';
+  import ThemeToggle from './components/ThemeToggle.svelte';
+  import { toasts } from './lib/toast';
+  import sp from './api/api';
 
-  // ===== Settings =====
+  let appBusy = false;
+  let cancelBtn: HTMLButtonElement | null = null;
+
   let cfgPath = localStorage.getItem('sp_cfg') || 'private.json';
   let siteURL = localStorage.getItem('sp_site') || '';
-  // novo: Global Timeout (s). 0 = sem limite
   let gt = Number(localStorage.getItem('sp_gt') ?? '60');
+  let clean = (localStorage.getItem('sp_clean') ?? '0') === '1';
 
-  async function pickConfig() {
-    const p = await OpenConfigDialog();
-    if (p) cfgPath = p as string;
+  $: if (appBusy && cancelBtn) cancelBtn.focus();
+
+  function onKey(e: KeyboardEvent) {
+    if (!appBusy) return;
+    if (e.key === 'Escape' || e.key === 'Esc') { e.preventDefault(); cancelOp(); }
   }
-
-  async function saveConfig() {
-    await SetConfig({ ConfigPath: cfgPath, SiteURL: siteURL, GlobalTimeoutSec: Number(gt) });
-    localStorage.setItem('sp_cfg', cfgPath);
-    localStorage.setItem('sp_site', siteURL);
-    localStorage.setItem('sp_gt', String(gt));
-    alert('Config guardada ✅');
-  }
-
-  // ===== List / Query =====
-  let list = 'tblRegistos';
-  let select = 'Id,Matricula,Operador,DataHora';
-  let filter = '';
-  let orderby = 'ID desc';
-  let top = 5;
-  let all = false;
-  let latestOnly = false;
-
-  let busy = false;
-  let error = '';
-  let result: any = null;
-  let elapsed = 0;
 
   onMount(async () => {
-    try { await Ping(); } catch { /* ignore */ }
-    await SetConfig({ ConfigPath: cfgPath, SiteURL: siteURL, GlobalTimeoutSec: Number(gt) });
+    try { await sp.ping(); } catch {}
+    await sp.setConfig({ ConfigPath: cfgPath, SiteURL: siteURL, GlobalTimeoutSec: Number(gt), CleanOutput: clean });
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
   });
 
-  async function runList() {
-    busy = true; error = ''; result = null;
-    const t0 = performance.now();
+  function setAppBusy(v: boolean) { appBusy = v; }
+
+  async function cancelOp() {
     try {
-      result = await ListItems({ list: list, select, filter, orderby, top, all, latestOnly });
-    } catch (e:any) {
-      error = e?.message || String(e);
-    } finally {
-      elapsed = Math.round(performance.now() - t0);
-      busy = false;
-    }
+      const had = await sp.cancelCurrent();
+      if (had) toasts.push('A cancelar…', 'info', 1500);
+    } catch {}
   }
 
-  // ===== Write Ops =====
-  let wo_list = 'tblRegTestes';
-  let wo_select = 'Id,Matricula,Operador,DataHora';
-  let wo_id: number = 0;
-  let wo_fields_json = '{ "Matricula": "ABCD01", "Operador": "999999" }';
-  let lastWrite: any = null;
-
-  function parseFieldsJSON(): Record<string, any> {
-    try {
-      if (!wo_fields_json.trim()) return {};
-      return JSON.parse(wo_fields_json);
-    } catch {
-      throw new Error('Campos (JSON) inválidos');
-    }
-  }
-
-  async function doAdd() {
-    busy = true; error = ''; lastWrite = null;
-    try {
-      const fields = parseFieldsJSON();
-      lastWrite = await AddItem(wo_list, fields, wo_select);
-      if (list) await runList();
-    } catch (e:any) {
-      error = e?.message || String(e);
-    } finally { busy = false; }
-  }
-
-  async function doUpdate() {
-    busy = true; error = ''; lastWrite = null;
-    try {
-      if (!wo_id || wo_id <= 0) throw new Error('ID inválido');
-      const fields = parseFieldsJSON();
-      lastWrite = await UpdateItem(wo_list, wo_id, fields, wo_select);
-      if (list) await runList();
-    } catch (e:any) {
-      error = e?.message || String(e);
-    } finally { busy = false; }
-  }
-
-  async function doDelete() {
-    busy = true; error = ''; lastWrite = null;
-    try {
-      if (!wo_id || wo_id <= 0) throw new Error('ID inválido');
-      const ok = await DeleteItem(wo_list, wo_id);
-      lastWrite = { deleted: ok, id: wo_id };
-      if (list) await runList();
-    } catch (e:any) {
-      error = e?.message || String(e);
-    } finally { busy = false; }
-  }
-
-  // ===== Export =====
-  function download(filename: string, content: string, mime = 'text/plain') {
-    const blob = new Blob([content], { type: mime });
-    const a = document.createElement('a');
-    a.href = URL.createObjectURL(blob);
-    a.download = filename;
-    a.click();
-    URL.revokeObjectURL(a.href);
-  }
-
-  function exportJSON() {
-    if (!result?.items) return;
-    download('export.json', JSON.stringify(result.items, null, 2), 'application/json');
-  }
-
-  function toCSV(rows: any[]): string {
-    if (!rows || rows.length === 0) return '';
-    const cols = Object.keys(rows[0]);
-    const esc = (v: any) => {
-      const s = v == null ? '' : String(v);
-      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
-      return s;
-    };
-    const header = cols.map(esc).join(',');
-    const body = rows.map(r => cols.map(c => esc(r[c])).join(',')).join('\n');
-    return header + '\n' + body + '\n';
-  }
-
-  function exportCSV() {
-    if (!result?.items) return;
-    download('export.csv', toCSV(result.items), 'text/csv');
-  }
+  let listPanelRef: any;
+  function refreshListIfAny() { listPanelRef?.refresh(); }
 </script>
 
 <main>
-  <h1>SharePoint GUI (PoC)</h1>
+  <div class="inline" style="justify-content: space-between; align-items: center;">
+    <h1>SharePoint GUI (PoC)</h1>
+    <ThemeToggle />
+  </div>
 
-  <!-- SETTINGS -->
   <section class="card">
-    <h2>Settings</h2>
-    <div class="row3">
-      <div class="row">
-        <label for="cfg">private.json</label>
-        <input id="cfg" bind:value={cfgPath} />
-        <button on:click={pickConfig}>Procurar…</button>
-      </div>
-      <div class="row">
-        <label for="site">Site URL (override)</label>
-        <input id="site" bind:value={siteURL} placeholder="(opcional)" />
-      </div>
-      <div class="row">
-        <label for="gt">Global timeout (s)</label>
-        <input id="gt" type="number" min="0" bind:value={gt} />
-      </div>
-      <div class="row">
-        <span></span>
-        <button on:click={saveConfig}>Guardar</button>
-      </div>
-    </div>
+    <SettingsPanel bind:cfgPath bind:siteURL bind:gt bind:clean />
   </section>
 
-  <!-- LIST / QUERY -->
   <section class="card">
-    <h2>Listar</h2>
-    <div class="row">
-      <label for="list">List</label>
-      <input id="list" bind:value={list} />
-    </div>
-    <div class="row">
-      <label for="select">Select</label>
-      <input id="select" bind:value={select} />
-    </div>
-    <div class="row">
-      <label for="filter">Filter</label>
-      <input id="filter" bind:value={filter} placeholder="ex.: Matricula eq '57RT01'" />
-    </div>
-    <div class="row">
-      <label for="orderby">OrderBy</label>
-      <input id="orderby" bind:value={orderby} />
-    </div>
-    <div class="row">
-      <label for="top">Top</label>
-      <input id="top" type="number" bind:value={top} min="0" />
-    </div>
-    <div class="row">
-      <label>Flags</label>
-      <div class="inline">
-        <label><input type="checkbox" bind:checked={all} /> All</label>
-        <label><input type="checkbox" bind:checked={latestOnly} /> Latest only</label>
-      </div>
-    </div>
-    <div class="row">
-      <span></span>
-      <div class="inline">
-        <button on:click={runList} disabled={busy}>{busy ? 'A ler…' : 'Listar'}</button>
-        <button on:click={exportJSON} disabled={!result?.items?.length}>Export JSON</button>
-        <button on:click={exportCSV} disabled={!result?.items?.length}>Export CSV</button>
-      </div>
-    </div>
-
-    {#if error}
-      <pre class="error">{error}</pre>
-    {/if}
-
-    {#if result}
-      <h3>Resumo</h3>
-      <div class="summary">
-        <div><b>items</b><div>{result.summary?.items ?? 0}</div></div>
-        <div><b>pages</b><div>{result.summary?.pages ?? 0}</div></div>
-        <div><b>throttled</b><div>{String(result.summary?.throttled ?? false)}</div></div>
-        <div><b>partial</b><div>{String(result.summary?.partial ?? false)}</div></div>
-        <div><b>fallback</b><div>{String(result.summary?.fallback ?? false)}</div></div>
-        <div><b>stoppedEarly</b><div>{String(result.summary?.stoppedEarly ?? false)}</div></div>
-        <div><b>elapsed</b><div>{elapsed} ms</div></div>
-      </div>
-
-      <h3>Items</h3>
-      <div class="tablewrap">
-        <table>
-          <thead>
-            <tr>
-              {#if result.items && result.items[0]}
-                {#each Object.keys(result.items[0]) as k}
-                  <th>{k}</th>
-                {/each}
-              {/if}
-            </tr>
-          </thead>
-          <tbody>
-            {#each result.items as row}
-              <tr>
-                {#each Object.keys(result.items[0] || {}) as k}
-                  <td>{row[k]}</td>
-                {/each}
-              </tr>
-            {/each}
-          </tbody>
-        </table>
-      </div>
-
-      <details>
-        <summary>JSON completo</summary>
-        <pre>{JSONFmt(result)}</pre>
-      </details>
-    {/if}
+    <ListQueryPanel bind:this={listPanelRef} {setAppBusy} />
   </section>
 
-  <!-- WRITE OPS -->
   <section class="card">
-    <h2>Write (Add / Update / Delete)</h2>
-    <div class="row">
-      <label for="wo_list">List</label>
-      <input id="wo_list" bind:value={wo_list} />
-    </div>
-    <div class="row">
-      <label for="wo_select">Select (readback)</label>
-      <input id="wo_select" bind:value={wo_select} />
-    </div>
-    <div class="row">
-      <label for="wo_id">ID</label>
-      <input id="wo_id" type="number" bind:value={wo_id} min="0" />
-    </div>
-    <div class="row">
-      <label for="wo_fields">Campos (JSON)</label>
-      <textarea id="wo_fields" bind:value={wo_fields_json} rows="4" spellcheck="false"></textarea>
-    </div>
-    <div class="row">
-      <span></span>
-      <div class="inline">
-        <button on:click={doAdd} disabled={busy}>Add</button>
-        <button on:click={doUpdate} disabled={busy}>Update</button>
-        <button on:click={doDelete} disabled={busy}>Delete</button>
-      </div>
-    </div>
-
-    {#if lastWrite}
-      <h3>Resultado</h3>
-      <pre>{JSONFmt(lastWrite)}</pre>
-    {/if}
+    <CrudPanel {setAppBusy} onChanged={refreshListIfAny} />
   </section>
+
+  <section class="card">
+    <AttachmentsPanel />
+  </section>
+
+  <Overlay visible={appBusy} onCancel={cancelOp} bind:cancelBtn />
+  <Toasts />
 </main>
-
-<style>
-  main { font-family: ui-sans-serif, system-ui; padding: 16px; max-width: 1200px; margin: 0 auto; }
-  h1 { margin: 0 0 12px; }
-  h2 { margin-top: 0; }
-  .card { border: 1px solid #ddd; border-radius: 10px; padding: 14px; margin: 16px 0; box-shadow: 0 2px 8px rgba(0,0,0,.04); }
-  .row { display: grid; grid-template-columns: 180px 1fr; gap: 8px; align-items: center; margin: 8px 0; }
-  .row3 .row { grid-template-columns: 180px 1fr auto; }
-  input, textarea { padding: 8px; border: 1px solid #ccc; border-radius: 8px; }
-  button { padding: 8px 12px; border-radius: 8px; border: 1px solid #ccc; background: #f8f8f8; cursor: pointer; }
-  button:disabled { opacity: .6; cursor: default; }
-  .inline { display: flex; gap: 8px; align-items: center; }
-  .error { color: #b00020; white-space: pre-wrap; border-left: 3px solid #b00020; padding-left: 8px; }
-  .summary { display: grid; grid-template-columns: repeat(auto-fit, minmax(110px,1fr)); gap: 8px; margin: 8px 0 12px; }
-  .summary > div { border: 1px solid #eee; border-radius: 8px; padding: 8px; text-align: center; }
-  .summary b { display: block; color: #666; font-weight: 600; margin-bottom: 4px; }
-  .tablewrap { overflow: auto; max-height: 50vh; border: 1px solid #eee; border-radius: 8px; }
-  table { border-collapse: collapse; width: 100%; }
-  th, td { border-bottom: 1px solid #f0f0f0; padding: 6px 8px; text-align: left; }
-</style>

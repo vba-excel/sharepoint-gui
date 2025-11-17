@@ -4,6 +4,7 @@ export namespace spgui {
 	    ConfigPath: string;
 	    SiteURL: string;
 	    GlobalTimeoutSec: number;
+	    CleanOutput: boolean;
 	
 	    static createFrom(source: any = {}) {
 	        return new Config(source);
@@ -14,6 +15,7 @@ export namespace spgui {
 	        this.ConfigPath = source["ConfigPath"];
 	        this.SiteURL = source["SiteURL"];
 	        this.GlobalTimeoutSec = source["GlobalTimeoutSec"];
+	        this.CleanOutput = source["CleanOutput"];
 	    }
 	}
 	export class ListQuery {
@@ -93,6 +95,21 @@ export namespace spgui {
 		    }
 		    return a;
 		}
+	}
+	
+	export class SPAttachmentInfo {
+	    fileName: string;
+	    serverRelativeUrl: string;
+	
+	    static createFrom(source: any = {}) {
+	        return new SPAttachmentInfo(source);
+	    }
+	
+	    constructor(source: any = {}) {
+	        if ('string' === typeof source) source = JSON.parse(source);
+	        this.fileName = source["fileName"];
+	        this.serverRelativeUrl = source["serverRelativeUrl"];
+	    }
 	}
 
 }

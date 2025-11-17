@@ -1,0 +1,13 @@
+:root[data-theme='dark'] {
+  --bg: #0f172a;            /* slate-900 */
+  --card-bg: #111827;       /* gray-900 */
+  --text: #e5e7eb;          /* gray-200 */
+  --border: #374151;        /* gray-700 */
+  --muted: #9ca3af;         /* gray-400 */
+  --accent: #60a5fa;        /* blue-400 */
+
+  --btn-bg: #1f2937;        /* gray-800 */
+  --btn-border: #4b5563;    /* gray-600 */
+
+  --table-border: #334155;  /* slate-700 */
+}
